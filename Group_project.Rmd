@@ -1,0 +1,38 @@
+---
+title: "Group Assignment 1"
+author: "Group"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r data}
+setwd('C:/Users/steef/Documents/NHH/BAN432 Applied Textual Data Analysis for Business and Finance/Assignment Group 1')
+load('firm_dataset.Rdata')
+rm(section.7.mda)
+```
+
+```{r libraries-and-functions}
+library(tm)
+library(tidytext)
+library(stopwords)
+library(stringr)
+```
+
+
+```{r data-cleaning}
+# Clean the data: remove punctuation, remove numbers, remove stopwords, make lower case, only consider
+# terms with 3 to 20 letters, and delete excess white spaces.
+section.1.business[1] %>%
+  tolower() %>%
+  # str_replace_all(., stopwords(), '') %>%
+  gsub('[[:digit:]]+', '', .) %>%
+  gsub('[[:punct:]]+', '', .)
+   
+?str_replace_all
+?gsub
+```
+
