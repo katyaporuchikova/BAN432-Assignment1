@@ -112,6 +112,16 @@ c = dtm[raw.data$industry.fama.french.49 == '30 Oil', ] %>%
 d = dtm[raw.data$industry.fama.french.49 != '30 Oil', ] %>%
   as.matrix() %>%
   sum()
+
+cbind(as.data.frame(a),b) %>%
+  filter((a != 0) & # If a = 0 log is not defined
+           (b != 0)) %>% # If b = 0 log is not defined
+  mutate(e.1 = c * (a + b) / (c + d), 
+         e.2 = d * (a + b) / (c + d)) %>%
+  mutate(ll = 2 * ((a * log(a / e.1)) + (b * log(b / e.2)))) %>%
+  select(ll) %>%
+  arrange(desc(ll))
+
 ```
 
 
