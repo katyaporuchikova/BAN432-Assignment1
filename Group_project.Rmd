@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 
 ```{r data}
-setwd('C:/Users/steef/Documents/NHH/BAN432 Applied Textual Data Analysis for Business and Finance/Assignment Group 1')
+setwd('C:/Users/steef/Documents/NHH/BAN432 Applied Textual Data Analysis for Business and Finance/Assignment Group 1/BAN432-Assignment1')
 load('firm_dataset.Rdata')
 rm(section.7.mda)
 ```
@@ -18,21 +18,74 @@ rm(section.7.mda)
 ```{r libraries-and-functions}
 library(tm)
 library(tidytext)
-library(stopwords)
 library(stringr)
+library(tibble)
+library(dplyr)
 ```
 
 
 ```{r data-cleaning}
 # Clean the data: remove punctuation, remove numbers, remove stopwords, make lower case, only consider
 # terms with 3 to 20 letters, and delete excess white spaces.
-section.1.business[1] %>%
-  tolower() %>%
-  # str_replace_all(., stopwords(), '') %>%
-  gsub('[[:digit:]]+', '', .) %>%
-  gsub('[[:punct:]]+', '', .)
-   
-?str_replace_all
-?gsub
+
+section.1.business %>%
+  # Remove the \" 
+  gsub('\\\"','',.) %>% 
+  # Transform to lowercase
+  tolower() %>% 
+  removePunctuation() %>% 
+  removeNumbers() %>% 
+  # Remove stopwords
+  removeWords(stopwords()) %>% 
+  # Remove extra spaces
+  gsub(' +',' ',.) %>% 
+  # Remove words with 1 to 3 characters
+  gsub('\\b\\w{1,3}\\s','',.) %>% 
+  # Remove words with 21 or more characters
+  gsub('\\b\\w{21,}\\s','',.) -> sec.1.clean 
+
 ```
+
+```{r tokensize-bigrams}
+# Transform the data into bigrams. One easy implementation using the tokenizers package:
+
+sec.1.clean %>%
+  as_tibble()  %>%
+  mutate(rown = c(1:500)) %>% # create number for future merging with raw.data
+  unnest_ngrams(input = 'value', 
+                output = 'bigram', 
+                n = 2,
+                ngram_delim = '_') -> sec.1.bigrams
+
+```
+
+```{r make-dtm, message = FALSE}
+# Make a document term matrix only including tokens that appear in more than 5 
+# but less than 100 documents.
+
+sec.1.bigrams %>%
+  group_by(rown) %>%
+  select(bigram) %>%
+  summarise(text = paste(bigram, collapse = ' '), .groups = 'drop') %>%
+  select(text) %>%
+  VectorSource() %>%
+  Corpus() %>%
+  DocumentTermMatrix(control = list(global = c(5, 100))) -> dtm
+
+```
+
+```{r identify-oil}
+# Identify firms in the Oil sector and firms not in the Oil sector.
+Oil <- which(raw.data$industry.fama.french.49 == '30 Oil')
+```
+
+```{r compute-log-lik}
+# For each token (bi-grams) in the corpora compute the Log-Likelihood of being in the subset of oil firms
+# and the remaining. Display the top tokens. Are these tokens associated with the oil sector? For the
+# remainder of the analysis, only use the 500 tokens with the highest Log-Likelihood. Log-Likelihood was
+# mentioned in one of the guest lectures and you calculate it this way:
+
+```
+
+
 
