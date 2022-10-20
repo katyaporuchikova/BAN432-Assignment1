@@ -68,9 +68,12 @@ sec.1.bigrams %>%
   select(bigram) %>%
   summarise(text = paste(bigram, collapse = ' '), .groups = 'drop') %>%
   select(text) %>%
-  VectorSource() %>%
-  Corpus() %>%
-  DocumentTermMatrix(control = list(global = c(5, 100))) -> dtm
+  # To not lose the document numbers
+  as.vector() %>%
+  .[[1]] %>%
+  VectorSource(.) %>%
+  Corpus(.) %>%
+  DocumentTermMatrix(control = list(bound = list(global = c(5, 100)))) -> dtm
 
 ```
 
@@ -84,7 +87,20 @@ Oil <- which(raw.data$industry.fama.french.49 == '30 Oil')
 # and the remaining. Display the top tokens. Are these tokens associated with the oil sector? For the
 # remainder of the analysis, only use the 500 tokens with the highest Log-Likelihood. Log-Likelihood was
 # mentioned in one of the guest lectures and you calculate it this way:
+dtm[raw.data$industry.fama.french.49 == Oil,]
 
+inspect(dtm)
+
+calculate.ll <- function(a, b, c, d){
+e1 <- c*(a+b)/(c+d)
+e2 <- d*(a+b)/(c+d)
+ll <- 2*((a*log(a/e1)) + (b*log(b/e2)))
+return(ll)
+}
+# a = freq. of a word in the oil corpus
+# b = freq. of a word in the non-oil corpus
+# c = sum of all words in the oil corpus
+# d = sum of all words in the non-oil corpus
 ```
 
 
