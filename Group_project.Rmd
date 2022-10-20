@@ -77,30 +77,41 @@ sec.1.bigrams %>%
 
 ```
 
-```{r identify-oil}
-# Identify firms in the Oil sector and firms not in the Oil sector.
-Oil <- which(raw.data$industry.fama.french.49 == '30 Oil')
-```
-
 ```{r compute-log-lik}
 # For each token (bi-grams) in the corpora compute the Log-Likelihood of being in the subset of oil firms
 # and the remaining. Display the top tokens. Are these tokens associated with the oil sector? For the
 # remainder of the analysis, only use the 500 tokens with the highest Log-Likelihood. Log-Likelihood was
 # mentioned in one of the guest lectures and you calculate it this way:
-dtm[raw.data$industry.fama.french.49 == Oil,]
+dtm[raw.data$industry.fama.french.49 == '30 Oil',] 
+dtm[raw.data$industry.fama.french.49 != '30 Oil',]
 
-inspect(dtm)
 
-calculate.ll <- function(a, b, c, d){
-e1 <- c*(a+b)/(c+d)
-e2 <- d*(a+b)/(c+d)
-ll <- 2*((a*log(a/e1)) + (b*log(b/e2)))
-return(ll)
+calculate.ll <- function(a, b, c, d) {
+  e1 <- c * (a + b) / (c + d)
+  e2 <- d * (a + b) / (c + d)
+  ll <- 2 * ((a * log(a / e1)) + (b * log(b / e2)))
+  return(ll)
 }
+
 # a = freq. of a word in the oil corpus
+a = dtm[raw.data$industry.fama.french.49 == '30 Oil', ] %>%
+  as.matrix() %>%
+  colSums()
+
 # b = freq. of a word in the non-oil corpus
+b = dtm[raw.data$industry.fama.french.49 != '30 Oil', ] %>%
+  as.matrix() %>%
+  colSums()
+
 # c = sum of all words in the oil corpus
+c = dtm[raw.data$industry.fama.french.49 == '30 Oil', ] %>%
+  as.matrix() %>%
+  sum()
+
 # d = sum of all words in the non-oil corpus
+d = dtm[raw.data$industry.fama.french.49 != '30 Oil', ] %>%
+  as.matrix() %>%
+  sum()
 ```
 
 
