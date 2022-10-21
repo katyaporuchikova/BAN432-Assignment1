@@ -23,7 +23,6 @@ library(tibble)
 library(dplyr)
 ```
 
-
 ```{r data-cleaning}
 # Clean the data: remove punctuation, remove numbers, remove stopwords, make lower case, only consider
 # terms with 3 to 20 letters, and delete excess white spaces.
@@ -120,9 +119,97 @@ cbind(as.data.frame(a),b) %>%
          e.2 = d * (a + b) / (c + d)) %>%
   mutate(ll = 2 * ((a * log(a / e.1)) + (b * log(b / e.2)))) %>%
   select(ll) %>%
-  arrange(desc(ll))
+  arrange(desc(ll)) %>%
+  head(500) -> top.500.ll
+
+print(top_n(top.500.ll, n = 10))
+
+imp.bigrams <- rownames(top.500.ll) 
+
+# Use the 500 tokens with the highest Log-Likelihood
+dtm <- dtm[,imp.bigrams]
+```
+
+```{r cos-sim-peers}
+
+CosineSimilarity <- function(A, B) {
+  sum(A * B) / sqrt(sum(A ^ 2) * sum(B ^ 2))
+}
+
+d <- data.frame(matrix(ncol = 18, nrow = 482))
+
+filter(raw.data, raw.data$industry.fama.french.49 == "30 Oil") -> Oil
+filter(raw.data, raw.data$industry.fama.french.49 != "30 Oil") -> notOil
+
+for (i in 1:18) {
+  for (j in 1:482) {
+    d[[j, i]] <- CosineSimilarity(dtm[raw.data$cik == Oil$cik[i], ],
+                                  dtm[raw.data$cik == notOil$cik[j], ])
+  }
+}
+
+# Create a list for peer firms
+closest <- list()
+
+# Select top 5
+for (i in 1:18) {
+  which(d[, i] %in% paste(sort(d[, i], decreasing = TRUE)[1:5])) %>%
+    append(closest, .) -> closest
+}
+
+# Indexes to doc numbers
+map_dbl(closest, 
+        ~ which(raw.data$industry.fama.french.49 != '30 Oil')[.x]) -> 
+  closest.ind
+```
+
+```{r avg-return}
+# Add weights 
+sort(closest.ind) %>%
+  as_tibble() %>%
+  group_by(value) %>%
+  summarize(weight = n()) %>%
+  mutate(weight = weight/length(closest)) -> portfolio.composition
+
+# Equally weighted portfolio
+raw.data %>%
+  filter(industry.fama.french.49 == '30 Oil') %>%
+  select(return.monthly.NY.m01 : return.monthly.NY.m12) %>%
+  colMeans() %>%
+  as_tibble() %>%
+  rename(Oil.return = value) -> Oil.ret
+
+# Weighted peer portfolio return
+raw.data[portfolio.composition$value,] %>%
+  select(return.monthly.NY.m01 : return.monthly.NY.m12) %>%
+  bind_cols(portfolio.composition) %>%
+  select(-value) %>%
+  pivot_longer(return.monthly.NY.m01 : return.monthly.NY.m12,
+               names_to = 'month', values_to = 'return') %>%
+  group_by(month) %>%
+  summarize(portf.ret = sum(weight * return)) %>%
+  as_tibble() %>%
+  bind_cols(Oil.ret) -> replicating.portf
+
+# Plot replicating portfolio
+replicating.portf %>%
+  pivot_longer(portf.ret:Oil.return, 
+               names_to = 'Portfolio', values_to = 'Return') %>%
+  mutate(month = gsub('return.monthly.NY.m', '', month) %>%
+           as.numeric()) %>%
+  ggplot(aes(x = month, y = Return, color = Portfolio)) +
+  geom_line(size = 1) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  scale_x_continuous(breaks = c(1:12), 
+                     labels = month.abb) +
+  labs(x = 'Month') +
+  scale_color_manual(values = c('red', 'blue'))
 
 ```
 
+Evaluate the performance of your algorithm. Compute the Root Mean Squared Error (just google the definition) between both portfolios.
 
-
+```{r}
+replicating.portf 
+```
