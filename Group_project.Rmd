@@ -21,6 +21,8 @@ library(tidytext)
 library(stringr)
 library(tibble)
 library(dplyr)
+library(ggplot2)
+library(geomtextpath)
 ```
 
 ```{r data-cleaning}
@@ -210,9 +212,9 @@ Evaluate the performance of your algorithm. Compute the Root Mean Squared Error 
 replicating.portf %>%
   mutate(RMSE = (Oil.return - portf.ret)^2) %>%
   select(RMSE) %>%
-  colSums()/12 -> RMSE
+  colSums()/12 -> RMSE.bigrams
 
-RMSE
+RMSE.bigrams
 ```
 
 Evaluate whether using uni-grams (versus bi-grams) performs better/worse? For the remainder of steps,
@@ -339,9 +341,9 @@ replicating.portf %>%
 replicating.portf %>%
   mutate(RMSE = (Oil.return - portf.ret)^2) %>%
   select(RMSE) %>%
-  colSums()/12 -> RMSE
+  colSums()/12 -> RMSE.uni.grams
 
-RMSE
+RMSE.uni.grams
 ```
 
 • [Optional] Does this approach of constructing tracking portfolios work? Knowing the value of the RMSE
@@ -349,8 +351,57 @@ is not necessarily enough to assess performance against alternative portfolio se
 random portfolios of similar number of firms and compute the corresponding RMSE. Display it as a
 histogram. Does the text approach do a better/worse job?
 
-```{r}
+```{r optional}
+size <- 10000
+
+rm(replicating.portf.rand)
+
+replicating.portf.rand <- data.frame(matrix(ncol = size, nrow = 12))
+
+for (i in 1:size){
+  # Sample 38 stocks
+  sample(which(raw.data$industry.fama.french.49 != "30 Oil"),
+         nrow(portfolio.composition), replace = TRUE) %>% # Allow twice
+
+  as_tibble() %>%
+  group_by(value) %>%
+  summarize(weight = n()) %>%
+  mutate(weight = weight/length(closest)) -> portfolio.composition
+
+  raw.data[portfolio.composition$value,] %>%
+  select(return.monthly.NY.m01 : return.monthly.NY.m12) %>%
+  bind_cols(portfolio.composition) %>%
+  select(-value) %>%
+  pivot_longer(return.monthly.NY.m01 : return.monthly.NY.m12,
+               names_to = 'month', values_to = 'return') %>%
+  group_by(month) %>%
+  summarize(portf.ret = sum(weight * return)) %>%
+  as_tibble() %>%
+    select(portf.ret) -> replicating.portf.rand[,i]
+}
+
+(replicating.portf.rand - replicating.portf$Oil.return)^2 %>%
+  colSums() / 12 -> RMSE.rand
+
+RMSE.rand %>%
+  as_tibble() %>%
+  ggplot(aes(value)) +
+  geom_histogram(bins = 30, fill = 'blue', alpha = 0.5) +
+  geom_textvline(label = 'Bigrams', 
+                 xintercept = RMSE.bigrams, vjust = 1.3,
+                 color = 'black') +
+  geom_textvline(label = 'Uni-grams', 
+                 xintercept = RMSE.uni.grams, vjust = 1.3,
+                 color = 'black') +
+  geom_textvline(label = 'Minimum RMSE random portfolio', 
+                 xintercept = min(RMSE.rand), vjust = 1.3,
+                 color = 'blue') +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) 
 
 ```
+
+
+
 
 
