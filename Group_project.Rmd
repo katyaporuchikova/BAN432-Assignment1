@@ -6,16 +6,21 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
+
 knitr::opts_chunk$set(echo = FALSE)
+
 ```
 
 ```{r data}
+
 setwd('C:/Users/steef/Documents/NHH/BAN432 Applied Textual Data Analysis for Business and Finance/Assignment Group 1/BAN432-Assignment1')
 load('firm_dataset.Rdata')
 rm(section.7.mda)
+
 ```
 
-```{r libraries-and-functions}
+```{r libraries, message = FALSE}
+
 library(tm)
 library(tidytext)
 library(stringr)
@@ -23,6 +28,13 @@ library(tibble)
 library(dplyr)
 library(ggplot2)
 library(geomtextpath)
+library(purrr)
+library(tidyr)
+
+## Extract code from Rmd
+# knitr::purl(input = 'Group_project.Rmd',
+#             output = 'Group_project.R')
+
 ```
 
 ```{r data-cleaning}
@@ -83,12 +95,12 @@ sec.1.bigrams %>%
 # and the remaining. Display the top tokens. Are these tokens associated with the oil sector? For the
 # remainder of the analysis, only use the 500 tokens with the highest Log-Likelihood. Log-Likelihood was
 # mentioned in one of the guest lectures and you calculate it this way:
-calculate.ll <- function(a, b, c, d) {
-  e1 <- c * (a + b) / (c + d)
-  e2 <- d * (a + b) / (c + d)
-  ll <- 2 * ((a * log(a / e1)) + (b * log(b / e2)))
-  return(ll)
-}
+# calculate.ll <- function(a, b, c, d) {
+#   e1 <- c * (a + b) / (c + d)
+#   e2 <- d * (a + b) / (c + d)
+#   ll <- 2 * ((a * log(a / e1)) + (b * log(b / e2)))
+#   return(ll)
+# }
 
 # a = freq. of a word in the oil corpus
 a = dtm[raw.data$industry.fama.french.49 == '30 Oil', ] %>%
@@ -206,8 +218,6 @@ replicating.portf %>%
 
 ```
 
-Evaluate the performance of your algorithm. Compute the Root Mean Squared Error (just google the definition) between both portfolios.
-
 ```{r evaluate-performance}
 replicating.portf %>%
   mutate(RMSE = (Oil.return - portf.ret)^2) %>%
@@ -216,10 +226,6 @@ replicating.portf %>%
 
 RMSE.bigrams
 ```
-
-Evaluate whether using uni-grams (versus bi-grams) performs better/worse? For the remainder of steps,
-use exactly the same approach. An easy way to implement this analysis is by recycling your current
-code skipping the step in which you transform the corpus into bigrams.
 
 # Uni-grams
 
@@ -346,11 +352,6 @@ replicating.portf %>%
 RMSE.uni.grams
 ```
 
-• [Optional] Does this approach of constructing tracking portfolios work? Knowing the value of the RMSE
-is not necessarily enough to assess performance against alternative portfolio selections. Construct 10.000
-random portfolios of similar number of firms and compute the corresponding RMSE. Display it as a
-histogram. Does the text approach do a better/worse job?
-
 ```{r optional}
 size <- 10000
 
@@ -389,13 +390,13 @@ RMSE.rand %>%
   geom_histogram(bins = 30, fill = 'blue', alpha = 0.5) +
   geom_textvline(label = 'Bigrams', 
                  xintercept = RMSE.bigrams, vjust = 1.3,
-                 color = 'black') +
+                 color = 'black', size = 1) +
   geom_textvline(label = 'Uni-grams', 
                  xintercept = RMSE.uni.grams, vjust = 1.3,
-                 color = 'black') +
+                 color = 'black', size = 1) +
   geom_textvline(label = 'Minimum RMSE random portfolio', 
                  xintercept = min(RMSE.rand), vjust = 1.3,
-                 color = 'blue') +
+                 color = 'blue', size = 1) +
   theme_minimal() +
   theme(panel.grid = element_blank()) 
 
