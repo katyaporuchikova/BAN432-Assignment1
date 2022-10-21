@@ -81,10 +81,6 @@ sec.1.bigrams %>%
 # and the remaining. Display the top tokens. Are these tokens associated with the oil sector? For the
 # remainder of the analysis, only use the 500 tokens with the highest Log-Likelihood. Log-Likelihood was
 # mentioned in one of the guest lectures and you calculate it this way:
-dtm[raw.data$industry.fama.french.49 == '30 Oil',] 
-dtm[raw.data$industry.fama.french.49 != '30 Oil',]
-
-
 calculate.ll <- function(a, b, c, d) {
   e1 <- c * (a + b) / (c + d)
   e2 <- d * (a + b) / (c + d)
@@ -210,6 +206,151 @@ replicating.portf %>%
 
 Evaluate the performance of your algorithm. Compute the Root Mean Squared Error (just google the definition) between both portfolios.
 
-```{r}
-replicating.portf 
+```{r evaluate-performance}
+replicating.portf %>%
+  mutate(RMSE = (Oil.return - portf.ret)^2) %>%
+  select(RMSE) %>%
+  colSums()/12 -> RMSE
+
+RMSE
 ```
+
+Evaluate whether using uni-grams (versus bi-grams) performs better/worse? For the remainder of steps,
+use exactly the same approach. An easy way to implement this analysis is by recycling your current
+code skipping the step in which you transform the corpus into bigrams.
+
+# Uni-grams
+
+```{r uni-grams}
+sec.1.clean %>%
+  VectorSource(.) %>%
+  Corpus(.) %>%
+  DocumentTermMatrix(control = list(bound = list(global = c(5, 100)))) -> dtm
+
+# a = freq. of a word in the oil corpus
+a = dtm[raw.data$industry.fama.french.49 == '30 Oil', ] %>%
+  as.matrix() %>%
+  colSums()
+
+# b = freq. of a word in the non-oil corpus
+b = dtm[raw.data$industry.fama.french.49 != '30 Oil', ] %>%
+  as.matrix() %>%
+  colSums()
+
+# c = sum of all words in the oil corpus
+c = dtm[raw.data$industry.fama.french.49 == '30 Oil', ] %>%
+  as.matrix() %>%
+  sum()
+
+# d = sum of all words in the non-oil corpus
+d = dtm[raw.data$industry.fama.french.49 != '30 Oil', ] %>%
+  as.matrix() %>%
+  sum()
+
+cbind(as.data.frame(a),b) %>%
+  filter((a != 0) & # If a = 0 log is not defined
+           (b != 0)) %>% # If b = 0 log is not defined
+  mutate(e.1 = c * (a + b) / (c + d), 
+         e.2 = d * (a + b) / (c + d)) %>%
+  mutate(ll = 2 * ((a * log(a / e.1)) + (b * log(b / e.2)))) %>%
+  select(ll) %>%
+  arrange(desc(ll)) %>%
+  head(500) -> top.500.ll
+
+print(top_n(top.500.ll, n = 10))
+
+imp.bigrams <- rownames(top.500.ll) 
+
+# Use the 500 tokens with the highest Log-Likelihood
+dtm <- dtm[,imp.bigrams]
+
+CosineSimilarity <- function(A, B) {
+  sum(A * B) / sqrt(sum(A ^ 2) * sum(B ^ 2))
+}
+
+d <- data.frame(matrix(ncol = 18, nrow = 482))
+
+filter(raw.data, raw.data$industry.fama.french.49 == "30 Oil") -> Oil
+filter(raw.data, raw.data$industry.fama.french.49 != "30 Oil") -> notOil
+
+for (i in 1:18) {
+  for (j in 1:482) {
+    d[[j, i]] <- CosineSimilarity(dtm[raw.data$cik == Oil$cik[i], ],
+                                  dtm[raw.data$cik == notOil$cik[j], ])
+  }
+}
+
+# Create a list for peer firms
+closest <- list()
+
+# Select top 5
+for (i in 1:18) {
+  which(d[, i] %in% paste(sort(d[, i], decreasing = TRUE)[1:5])) %>%
+    append(closest, .) -> closest
+}
+
+# Indexes to doc numbers
+map_dbl(closest, 
+        ~ which(raw.data$industry.fama.french.49 != '30 Oil')[.x]) -> 
+  closest.ind
+
+# Add weights 
+sort(closest.ind) %>%
+  as_tibble() %>%
+  group_by(value) %>%
+  summarize(weight = n()) %>%
+  mutate(weight = weight/length(closest)) -> portfolio.composition
+
+# Equally weighted portfolio
+raw.data %>%
+  filter(industry.fama.french.49 == '30 Oil') %>%
+  select(return.monthly.NY.m01 : return.monthly.NY.m12) %>%
+  colMeans() %>%
+  as_tibble() %>%
+  rename(Oil.return = value) -> Oil.ret
+
+# Weighted peer portfolio return
+raw.data[portfolio.composition$value,] %>%
+  select(return.monthly.NY.m01 : return.monthly.NY.m12) %>%
+  bind_cols(portfolio.composition) %>%
+  select(-value) %>%
+  pivot_longer(return.monthly.NY.m01 : return.monthly.NY.m12,
+               names_to = 'month', values_to = 'return') %>%
+  group_by(month) %>%
+  summarize(portf.ret = sum(weight * return)) %>%
+  as_tibble() %>%
+  bind_cols(Oil.ret) -> replicating.portf
+
+# Plot replicating portfolio
+replicating.portf %>%
+  pivot_longer(portf.ret:Oil.return, 
+               names_to = 'Portfolio', values_to = 'Return') %>%
+  mutate(month = gsub('return.monthly.NY.m', '', month) %>%
+           as.numeric()) %>%
+  ggplot(aes(x = month, y = Return, color = Portfolio)) +
+  geom_line(size = 1) +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  scale_x_continuous(breaks = c(1:12), 
+                     labels = month.abb) +
+  labs(x = 'Month') +
+  scale_color_manual(values = c('red', 'blue'))
+
+replicating.portf %>%
+  mutate(RMSE = (Oil.return - portf.ret)^2) %>%
+  select(RMSE) %>%
+  colSums()/12 -> RMSE
+
+RMSE
+```
+
+• [Optional] Does this approach of constructing tracking portfolios work? Knowing the value of the RMSE
+is not necessarily enough to assess performance against alternative portfolio selections. Construct 10.000
+random portfolios of similar number of firms and compute the corresponding RMSE. Display it as a
+histogram. Does the text approach do a better/worse job?
+
+```{r}
+
+```
+
+
