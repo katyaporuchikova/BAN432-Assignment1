@@ -1,6 +1,8 @@
 ---
-title: "Group Assignment 1"
-author: "Group"
+title:    |
+          | BAN432 fall 2022 
+          | First group assignment
+author: "Group 11"
 date: "`r Sys.Date()`"
 output: pdf_document
 ---
@@ -30,6 +32,8 @@ library(ggplot2)
 library(geomtextpath)
 library(purrr)
 library(tidyr)
+library(PlaneGeometry) # Library to find intersections
+library(scales) # Put y scale in %
 
 ## Extract code from Rmd
 # knitr::purl(input = 'Group_project.Rmd',
@@ -38,6 +42,7 @@ library(tidyr)
 ```
 
 ```{r data-cleaning}
+
 # Clean the data: remove punctuation, remove numbers, remove stopwords, make lower case, only consider
 # terms with 3 to 20 letters, and delete excess white spaces.
 
@@ -59,7 +64,10 @@ section.1.business %>%
 
 ```
 
+# Bi-grams
+
 ```{r tokensize-bigrams}
+
 # Transform the data into bigrams. One easy implementation using the tokenizers package:
 
 sec.1.clean %>%
@@ -73,6 +81,7 @@ sec.1.clean %>%
 ```
 
 ```{r make-dtm, message = FALSE}
+
 # Make a document term matrix only including tokens that appear in more than 5 
 # but less than 100 documents.
 
@@ -91,6 +100,7 @@ sec.1.bigrams %>%
 ```
 
 ```{r compute-log-lik}
+
 # For each token (bi-grams) in the corpora compute the Log-Likelihood of being in the subset of oil firms
 # and the remaining. Display the top tokens. Are these tokens associated with the oil sector? For the
 # remainder of the analysis, only use the 500 tokens with the highest Log-Likelihood. Log-Likelihood was
@@ -132,12 +142,14 @@ cbind(as.data.frame(a),b) %>%
   arrange(desc(ll)) %>%
   head(500) -> top.500.ll
 
-print(top_n(top.500.ll, n = 10))
+top_n(top.500.ll, n = 10) %>%
+  knitr::kable(caption = 'Top 10 Log-Likelihood bigrams')
 
 imp.bigrams <- rownames(top.500.ll) 
 
 # Use the 500 tokens with the highest Log-Likelihood
 dtm <- dtm[,imp.bigrams]
+
 ```
 
 ```{r cos-sim-peers}
@@ -171,9 +183,11 @@ for (i in 1:18) {
 map_dbl(closest, 
         ~ which(raw.data$industry.fama.french.49 != '30 Oil')[.x]) -> 
   closest.ind
+
 ```
 
 ```{r avg-return}
+
 # Add weights 
 sort(closest.ind) %>%
   as_tibble() %>%
@@ -201,30 +215,136 @@ raw.data[portfolio.composition$value,] %>%
   as_tibble() %>%
   bind_cols(Oil.ret) -> replicating.portf
 
-# Plot replicating portfolio
+```
+
+```{r plot-portfolios-bigrams}
+
+# Prepare data
 replicating.portf %>%
   pivot_longer(portf.ret:Oil.return, 
                names_to = 'Portfolio', values_to = 'Return') %>%
   mutate(month = gsub('return.monthly.NY.m', '', month) %>%
-           as.numeric()) %>%
-  ggplot(aes(x = month, y = Return, color = Portfolio)) +
-  geom_line(size = 1) +
+           as.numeric()) -> replicating.portf.longer
+
+# Create a dataframe for filling area
+replicating.portf %>%
+  mutate(
+    ymax = pmax(portf.ret, Oil.return),
+    ymin = pmin(portf.ret, Oil.return),
+    fill = portf.ret >= Oil.return,
+    month = gsub('return.monthly.NY.m', '', month) %>%
+           as.numeric()
+  ) -> bounds
+
+
+# Find the intersection between 2 lines
+# INTERSECTION 1 ---------------------------------------------------------------
+
+# Save coordinates of 2 points on portf.ret line
+portf.ret.4 <- c(bounds$month[4], bounds$portf.ret[4]) # point 1
+portf.ret.5 <- c(bounds$month[5], bounds$portf.ret[5]) # point 2
+
+# Save coordinates of 2 points on Oil.return line
+Oil.return.4 <- c(bounds$month[4], bounds$Oil.return[4]) # point 1
+Oil.return.5 <- c(bounds$month[5], bounds$Oil.return[5]) # point 2
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.4, portf.ret.5)
+Oil.return <- Line$new(Oil.return.4, Oil.return.5)
+
+# Find the coordinates of the intersection
+coord <- intersectionLineLine(portf.ret, Oil.return)
+
+# INTERSECTION 2 ---------------------------------------------------------------
+
+# Save coordinates of 2 points on portf.ret line
+portf.ret.7 <- c(bounds$month[7], bounds$portf.ret[7]) # point 1
+portf.ret.8 <- c(bounds$month[8], bounds$portf.ret[8]) # point 2
+
+# Save coordinates of 2 points on Oil.return line
+Oil.return.7 <- c(bounds$month[7], bounds$Oil.return[7]) # point 1
+Oil.return.8 <- c(bounds$month[8], bounds$Oil.return[8]) # point 2
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.7, portf.ret.8)
+Oil.return <- Line$new(Oil.return.7, Oil.return.8)
+
+# Find the coordinates of the intersection
+coord2 <- intersectionLineLine(portf.ret, Oil.return)
+
+# INTERSECTION 3 ---------------------------------------------------------------
+
+# Save coordinates of 1 points on portf.ret line (already have august)
+portf.ret.9 <- c(bounds$month[9], bounds$portf.ret[9]) 
+
+# Save coordinates of 1 point on Oil.return line (already have august)
+Oil.return.9 <- c(bounds$month[9], bounds$Oil.return[9])
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.8, portf.ret.9)
+Oil.return <- Line$new(Oil.return.8, Oil.return.9)
+
+# Find the coordinates of the intersection
+coord3 <- intersectionLineLine(portf.ret, Oil.return)
+
+# ------------------------------------------------------------------------------
+
+bind_rows(bounds,
+          tibble(month = c(coord[1],coord[1], 
+                           coord2[1], coord2[1],
+                           coord3[1], coord3[1]), 
+                 portf.ret = c(coord[2],coord[2], 
+                               coord2[2], coord2[2],
+                               coord3[2], coord3[2]), 
+                 Oil.return = c(coord[2],coord[2], 
+                                coord2[2], coord2[2],
+                                coord3[2], coord3[2]),
+                 ymax = c(coord[2],coord[2], 
+                          coord2[2], coord2[2],
+                          coord3[2], coord3[2]), 
+                 ymin = c(coord[2],coord[2], 
+                          coord2[2], coord2[2],
+                          coord3[2], coord3[2]), 
+                 fill = c(FALSE,TRUE, 
+                          TRUE, FALSE,
+                          FALSE, TRUE))) %>%
+  arrange(month) -> bounds
+
+ggplot() +
+  geom_ribbon(data = bounds, aes(month, ymin = ymin, ymax = ymax, fill = fill)) +
+  guides(linetype = "none", fill = "none") +
+  labs(x = NULL, y = NULL) +
+  scale_fill_manual(values = c('#B2B2B2', '#F0F0F0')) -> area_fill
+
+area_fill +
+  geom_line(data = replicating.portf.longer, 
+            aes(x = month, y = Return, color = Portfolio), 
+            size = 1.1, alpha = 0.9) +
   theme_minimal() +
   theme(panel.grid = element_blank()) +
   scale_x_continuous(breaks = c(1:12), 
                      labels = month.abb) +
-  labs(x = 'Month') +
-  scale_color_manual(values = c('red', 'blue'))
+  labs(x = 'Month',
+       title = 'Figure 1: Bi-grams replicating portfolio performance') +
+  scale_color_manual(values = c('#00A9F4', '#1F40E6'),
+                     labels = c('Oil portfolio', 'Replicating portfolio')) +
+  scale_y_continuous(labels = scales::percent)
 
 ```
 
-```{r evaluate-performance}
+
+
+
+```{r evaluate-performance-bigrams}
+
 replicating.portf %>%
   mutate(RMSE = (Oil.return - portf.ret)^2) %>%
   select(RMSE) %>%
   colSums()/12 -> RMSE.bigrams
 
-RMSE.bigrams
+print(paste('RMSE of bi-grams replicating portfolio is', 
+            round(RMSE.bigrams,5)))
+
 ```
 
 # Uni-grams
@@ -265,7 +385,8 @@ cbind(as.data.frame(a),b) %>%
   arrange(desc(ll)) %>%
   head(500) -> top.500.ll
 
-print(top_n(top.500.ll, n = 10))
+top_n(top.500.ll, n = 10) %>%
+  knitr::kable(caption = 'Top 10 Log-Likelihood unigrams')
 
 imp.bigrams <- rownames(top.500.ll) 
 
@@ -328,40 +449,179 @@ raw.data[portfolio.composition$value,] %>%
   summarize(portf.ret = sum(weight * return)) %>%
   as_tibble() %>%
   bind_cols(Oil.ret) -> replicating.portf
+```
 
-# Plot replicating portfolio
+
+
+```{r plot-portfolios-unigrams}
+
+# Prepare data
 replicating.portf %>%
   pivot_longer(portf.ret:Oil.return, 
                names_to = 'Portfolio', values_to = 'Return') %>%
   mutate(month = gsub('return.monthly.NY.m', '', month) %>%
-           as.numeric()) %>%
-  ggplot(aes(x = month, y = Return, color = Portfolio)) +
-  geom_line(size = 1) +
+           as.numeric()) -> replicating.portf.longer
+
+# Create a dataframe for filling area
+replicating.portf %>%
+  mutate(
+    ymax = pmax(portf.ret, Oil.return),
+    ymin = pmin(portf.ret, Oil.return),
+    fill = portf.ret >= Oil.return,
+    month = gsub('return.monthly.NY.m', '', month) %>%
+           as.numeric()
+  ) -> bounds
+
+
+# Find the intersection between 2 lines
+# INTERSECTION 1 ---------------------------------------------------------------
+
+# Save coordinates of 2 points on portf.ret line
+portf.ret.2 <- c(bounds$month[2], bounds$portf.ret[2]) # point 1
+portf.ret.3 <- c(bounds$month[3], bounds$portf.ret[3]) # point 2
+
+# Save coordinates of 2 points on Oil.return line
+Oil.return.2 <- c(bounds$month[2], bounds$Oil.return[2]) # point 1
+Oil.return.3 <- c(bounds$month[3], bounds$Oil.return[3]) # point 2
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.2, portf.ret.3)
+Oil.return <- Line$new(Oil.return.2, Oil.return.3)
+
+# Find the coordinates of the intersection
+coord <- intersectionLineLine(portf.ret, Oil.return)
+
+# INTERSECTION 2 ---------------------------------------------------------------
+
+# Save coordinates of 2 points on portf.ret line
+portf.ret.4 <- c(bounds$month[4], bounds$portf.ret[4]) # point 1
+portf.ret.5 <- c(bounds$month[5], bounds$portf.ret[5]) # point 2
+
+# Save coordinates of 2 points on Oil.return line
+Oil.return.4 <- c(bounds$month[4], bounds$Oil.return[4]) # point 1
+Oil.return.5 <- c(bounds$month[5], bounds$Oil.return[5]) # point 2
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.4, portf.ret.5)
+Oil.return <- Line$new(Oil.return.4, Oil.return.5)
+
+# Find the coordinates of the intersection
+coord2 <- intersectionLineLine(portf.ret, Oil.return)
+
+# INTERSECTION 3 ---------------------------------------------------------------
+
+# Save coordinates of 1 points on portf.ret line (already have may)
+portf.ret.6 <- c(bounds$month[6], bounds$portf.ret[6])
+
+# Save coordinates of 1 point on Oil.return line (already have may)
+Oil.return.6 <- c(bounds$month[6], bounds$Oil.return[6])
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.5, portf.ret.6)
+Oil.return <- Line$new(Oil.return.5, Oil.return.6)
+
+# Find the coordinates of the intersection
+coord3 <- intersectionLineLine(portf.ret, Oil.return)
+
+# INTERSECTION 4 ---------------------------------------------------------------
+
+# Save coordinates of 1 points on portf.ret line (already have june)
+portf.ret.7 <- c(bounds$month[7], bounds$portf.ret[7])
+
+# Save coordinates of 1 point on Oil.return line (already have june)
+Oil.return.7 <- c(bounds$month[7], bounds$Oil.return[7])
+
+# Save AD1 and AS lines as objects
+portf.ret <- Line$new(portf.ret.6, portf.ret.7)
+Oil.return <- Line$new(Oil.return.6, Oil.return.7)
+
+# Find the coordinates of the intersection
+coord4 <- intersectionLineLine(portf.ret, Oil.return)
+
+# ------------------------------------------------------------------------------
+ 
+bind_rows(bounds,
+          tibble(month = c(coord[1],coord[1],
+                           coord2[1], coord2[1],
+                           coord3[1], coord3[1],
+                           coord4[1], coord4[1]
+                           ),
+                 portf.ret = c(coord[2],coord[2],
+                               coord2[2], coord2[2],
+                               coord3[2], coord3[2],
+                               coord4[2], coord4[2]
+                               ),
+                 Oil.return = c(coord[2],coord[2],
+                                coord2[2], coord2[2],
+                                coord3[2], coord3[2],
+                                coord4[2], coord4[2]
+                                ),
+                 ymax = c(coord[2],coord[2],
+                          coord2[2], coord2[2],
+                          coord3[2], coord3[2],
+                          coord4[2], coord4[2]
+                          ),
+                 ymin = c(coord[2],coord[2],
+                          coord2[2], coord2[2],
+                          coord3[2], coord3[2],
+                          coord4[2], coord4[2]
+                          ),
+                 fill = c(TRUE,FALSE,
+                          TRUE, FALSE,
+                          FALSE, TRUE,
+                          TRUE, FALSE
+                          ))) %>%
+  arrange(month) -> bounds
+
+ggplot() +
+  geom_ribbon(data = bounds, aes(month, ymin = ymin, ymax = ymax, fill = fill)) +
+  guides(linetype = "none", fill = "none") +
+  labs(x = NULL, y = NULL) +
+  scale_fill_manual(values = c('#B2B2B2', '#F0F0F0')) -> area_fill
+
+area_fill +
+  geom_line(data = replicating.portf.longer, 
+            aes(x = month, y = Return, color = Portfolio), 
+            size = 1.1, alpha = 0.9) +
   theme_minimal() +
   theme(panel.grid = element_blank()) +
   scale_x_continuous(breaks = c(1:12), 
                      labels = month.abb) +
-  labs(x = 'Month') +
-  scale_color_manual(values = c('red', 'blue'))
+  labs(x = 'Month',
+       title = 'Figure 2: Uni-grams replicating portfolio performance') +
+  scale_color_manual(values = c('#00A9F4', '#1F40E6'),
+                     labels = c('Oil portfolio', 'Replicating portfolio')) +
+  scale_y_continuous(labels = scales::percent)
+
+```
+
+
+
+```{r evaluate-unigram-performance}
 
 replicating.portf %>%
   mutate(RMSE = (Oil.return - portf.ret)^2) %>%
   select(RMSE) %>%
   colSums()/12 -> RMSE.uni.grams
 
-RMSE.uni.grams
+print(paste('RMSE of uni-grams replicating portfolio is', 
+            round(RMSE.uni.grams,5)))
+
 ```
 
-```{r optional}
-size <- 10000
+Oil firm tracking portfolio constructed based on the uni-grams document term matrix performs significantly better than the one constructed with the use of bi-grams, as demonstrated by the Root Mean Squared Error measure. However, the use of uni-grams or bi-grams does not affect the overall relative shape of returns as shown by the charts above.
 
-rm(replicating.portf.rand)
+# Optional
+
+```{r optional}
+
+size <- 10000
 
 replicating.portf.rand <- data.frame(matrix(ncol = size, nrow = 12))
 
 for (i in 1:size){
   # Sample 38 stocks
-  sample(which(raw.data$industry.fama.french.49 != "30 Oil"),
+  sample(which(raw.data$industry.fama.french.49 != '30 Oil'),
          nrow(portfolio.composition), replace = TRUE) %>% # Allow twice
 
   as_tibble() %>%
@@ -387,22 +647,18 @@ for (i in 1:size){
 RMSE.rand %>%
   as_tibble() %>%
   ggplot(aes(value)) +
-  geom_histogram(bins = 30, fill = 'blue', alpha = 0.5) +
+  geom_histogram(bins = 30, fill = '#00A9F4', alpha = 0.5) +
   geom_textvline(label = 'Bigrams', 
                  xintercept = RMSE.bigrams, vjust = 1.3,
-                 color = 'black', size = 1) +
+                 color = '#B2B2B2') +
   geom_textvline(label = 'Uni-grams', 
                  xintercept = RMSE.uni.grams, vjust = 1.3,
-                 color = 'black', size = 1) +
+                 color = '#B2B2B2') +
   geom_textvline(label = 'Minimum RMSE random portfolio', 
                  xintercept = min(RMSE.rand), vjust = 1.3,
-                 color = 'blue', size = 1) +
+                 color = '#1F40E6') +
   theme_minimal() +
-  theme(panel.grid = element_blank()) 
+  theme(panel.grid = element_blank()) +
+  labs(title = 'Figure 3: Random portfolios RMSE distribution')
 
 ```
-
-
-
-
-
