@@ -647,7 +647,7 @@ for (i in 1:size){
 RMSE.rand %>%
   as_tibble() %>%
   ggplot(aes(value)) +
-  geom_histogram(bins = 30, fill = '#00A9F4', alpha = 0.5) +
+  geom_histogram(bins = 30, fill = '#00A9F4', color = 'white', alpha = 0.5) +
   geom_textvline(label = 'Bigrams', 
                  xintercept = RMSE.bigrams, vjust = 1.3,
                  color = '#B2B2B2') +
@@ -661,4 +661,43 @@ RMSE.rand %>%
   theme(panel.grid = element_blank()) +
   labs(title = 'Figure 3: Random portfolios RMSE distribution')
 
+
+RMSE.rand %>%
+  as_tibble() %>%
+  ggplot(aes(value)) +
+  geom_histogram(bins = 30, fill = '#00A9F4', color = 'white', alpha = 0.5) +
+  # PLOT BIGRAMS
+  geom_vline(xintercept = RMSE.bigrams, color = '#B2B2B2', size = 1.2) +
+  annotate('rect', fill = 'white',
+           xmin = (RMSE.bigrams - RMSE.bigrams / 20),
+           xmax = (RMSE.bigrams + RMSE.bigrams / 20),
+           ymin = 3900,
+           ymax = 4600)+
+  annotate('text', label = 'Bigrams', x = RMSE.bigrams, y = 4300) +
+  # PLOT UNIGRAMS
+  geom_vline(xintercept = RMSE.uni.grams, color = '#B2B2B2', size = 1.2) +
+  annotate('rect', fill = 'white',
+           xmin = (RMSE.uni.grams - RMSE.uni.grams / 20),
+           xmax = (RMSE.uni.grams + RMSE.uni.grams / 20),
+           ymin = 5900,
+           ymax = 6600) +
+  annotate('text', label = 'Uni-grams', x = RMSE.uni.grams, y = 6300) +
+  # PLOT MINIMUM RANDOM
+  geom_vline(xintercept = min(RMSE.rand), color = '#1F40E6', size = 1.2) +
+  annotate('rect', fill = 'white',
+           xmin = (min(RMSE.rand) - min(RMSE.rand) / 20),
+           xmax = (min(RMSE.rand) + min(RMSE.rand) / 20),
+           ymin = 1600,
+           ymax = 2800) +
+  annotate('text', label = 'Minimum RMSE', x = min(RMSE.rand), y = 2500) +
+  annotate('text', label = 'random portfolio', x = min(RMSE.rand), y = 2100) +
+  # Other plot settings
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  labs(title = 'Figure 3: Random portfolios RMSE distribution',
+       y = 'Frequency',
+       x = 'RMSE value')
+
 ```
+
+
